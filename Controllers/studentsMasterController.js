@@ -528,40 +528,75 @@ try{
 }
 
 })
-
-
-router.post('/saveStudentMarks', (req, res) => {
+router.post('/saveStudentMarks', async (req, res) => {
   const { body } = req;
+  console.log(req.body);
 
   if (!Array.isArray(body) || body.length === 0) {
     return res.status(400).json({ error: 'Invalid request body' });
   }
 
-  const values = body.map(student => [
-    student.stu_id,
-    student.stu_name,
-    student.examname,
-   
-    student.tamil !== undefined ? student.tamil : null,
-    student.english !== undefined ? student.english : null,
-    student.maths !== undefined ? student.maths : null,
-    student.science !== undefined ? student.science : null,
-    student.social !== undefined ? student.social : null,
-    student.total !== undefined ? student.total : 0,
-    student.exam_id, // Default to 0 if not provided
-  ]);
+  try {
+    // Construct the SQL WHERE clause dynamically
+    const conditions = body.map(student => `(stu_id = ${student.stu_id} AND exam_id = ${student.exam_id})`).join(' OR ');
+    const checkSql = `SELECT stu_id, exam_id FROM examsandmarks WHERE ${conditions}`;
 
-  const sql = 'INSERT INTO examsandmarks (stu_id, stu_name, examname, tamil, english, maths, science, social, total,exam_id) VALUES ?';
+    // Use the promise-based API for querying
+    const [results] = await db.query(checkSql);
 
-  db.query(sql, [values], (err, result) => {
-    if (err) {
-      console.error('Error saving marks:', err);
-      return res.status(500).json({ error: 'Failed to save marks' });
+    const existingRecords = results.map(result => `${result.stu_id}-${result.exam_id}`);
+    const newRecords = body.filter(student => !existingRecords.includes(`${student.stu_id}-${student.exam_id}`));
+
+    if (newRecords.length === 0) {
+      return res.status(200).json({ error: 'All records already exist' });
     }
-    console.log('Number of records inserted: ' + result.affectedRows);
-    res.status(200).json({ message: 'Marks saved successfully' });
-  });
+
+    // Insert or update the new records
+    const values = newRecords.map(student => [
+      student.stu_id,
+      student.stu_name,
+      student.examname,
+      student.tamil !== undefined ? student.tamil : null,
+      student.english !== undefined ? student.english : null,
+      student.maths !== undefined ? student.maths : null,
+      student.science !== undefined ? student.science : null,
+      student.social !== undefined ? student.social : null,
+      student.total !== undefined ? student.total : 0,
+      student.exam_id
+    ]);
+
+    const insertSql = `
+      INSERT INTO examsandmarks (stu_id, stu_name, examname, tamil, english, maths, science, social, total, exam_id)
+      VALUES ?
+      ON DUPLICATE KEY UPDATE
+        stu_name = VALUES(stu_name),
+        examname = VALUES(examname),
+        tamil = VALUES(tamil),
+        english = VALUES(english),
+        maths = VALUES(maths),
+        science = VALUES(science),
+        social = VALUES(social),
+        total = VALUES(total)
+    `;
+
+    // Execute the insert query
+    const [insertResult] = await db.query(insertSql, [values]);
+    
+    console.log('Number of records inserted/updated: ' + insertResult.affectedRows);
+
+    if (newRecords.length < body.length) {
+      return res.status(200).json({ message: 'Some records were already saved, and the remaining were saved successfully.' });
+    } else {
+      return res.status(200).json({ message: 'Marks saved successfully' });
+    }
+
+  } catch (err) {
+    console.error('Error processing request:', err);
+    return res.status(500).json({ error: 'Failed to save marks' });
+  }
 });
+
+
 
 
 router.get(`/examname`,async(req,res)=>{
@@ -603,60 +638,139 @@ router.get(`/examname`,async(req,res)=>{
     }
     
     })
-    router.get('/examdata/:exam_id', async (req, res) => {
-      try {
-          const exam_id = req.params.exam_id;
-          const getQuery = 'SELECT * FROM examsandmarks WHERE exam_id = ?';
-          const [results] = await db.query(getQuery, [exam_id]); // Pass exam_id as an array
-          if (results.length === 0) {
-              return res.status(404).json({ message: "Exam data not found." });
-          } else {
-              return res.status(200).json(results);
-          }
-      } catch (error) {
-          console.error("Error fetching back exam data:", error);
-          return res.status(500).json({ message: "Internal server error." });
-      }
-  });
 
-router.get(`/vanattenance/:staff_id`,async(req,res)=>{
-  try{
-    const staff_id = req.params.staff_id
-    const getQuery=`select stu.stu_id,stu.stu_name,stu.van,stu.cls_id,cls.cls_id,cls.staff_id from students_master as stu inner join class_teachers as cls on stu.cls_id = cls.cls_id where cls.staff_id = ? and van = 1`
-    const [results]= await db.query(getQuery,staff_id)
-    if (results.length == 0) {
-      return res.status(404).json({ message: "Students data not found." });
-    } else {
-     
+
+
+    router.put('/updateExamData', async (req, res) => {
+      const { stu_id, exam_id, ...updatedFields } = req.body;
+      console.log(req.body);
       
-      return res.status(200).json(results);
-    }
-  } catch (error) {
-    console.error("Error fetching van Students  data:", error);
-    return res.status(500).json({ message: "Internal server error." });
-  }
-  
-  })
-  router.post('/vanattenancepost', async (req, res) => {
-    const {staff_id, stu_name, stu_id, cls_id, thatdate, statusn } = req.body;
-  
+    
+      if (!stu_id || !exam_id) {
+        return res.status(400).json({ error: 'stu_id and exam_id are required' });
+      }
+    
+      try {
+        const updateFields = Object.keys(updatedFields)
+          .map(key => `${key} = ?`)
+          .join(', ');
+    
+        const updateValues = Object.values(updatedFields);
+    
+        const updateSql = `
+          UPDATE examsandmarks
+          SET ${updateFields}
+          WHERE stu_id = ? AND exam_id = ?
+        `;
+    
+        const [result] = await db.query(updateSql, [...updateValues, stu_id, exam_id]);
+    
+        if (result.affectedRows > 0) {
+          res.status(200).json({ success: true, message: 'Data updated successfully' });
+        } else {
+          res.status(400).json({ success: false, message: 'No matching record found to update' });
+        }
+      } catch (error) {
+        console.error('Error updating exam data:', error);
+        res.status(500).json({ error: 'Failed to update exam data' });
+      }
+    });
+    
+  //   router.get('/examdata/:exam_id', async (req, res) => {
+  //     try {
+  //         const exam_id = req.params.exam_id;
+  //         const getQuery = 'SELECT * FROM examsandmarks WHERE exam_id = ?';
+  //         const [results] = await db.query(getQuery, [exam_id]); // Pass exam_id as an array
+  //         if (results.length === 0) {
+  //             return res.status(404).json({ message: "Exam data not found." });
+  //         } else {
+  //             return res.status(200).json(results);
+  //         }
+  //     } catch (error) {
+  //         console.error("Error fetching back exam data:", error);
+  //         return res.status(500).json({ message: "Internal server error." });
+  //     }
+  // });
+
+  router.get('/examdata/:exam_id', async (req, res) => {
     try {
-     
-      const query = `
-        INSERT INTO van_attenance ( stu_id, cls_id, thatdate, statusn,staff_id,stu_name)
-        VALUES ( ?, ?, ?, ?,?,?)
+      const exam_id = req.params.exam_id;
+      const staff_id = req.query.staff_id; // Get the staff_id from query params
+  
+      const getQuery = `
+        SELECT e.*
+        FROM examsandmarks e
+        JOIN students_master s ON e.stu_id = s.stu_id
+        WHERE e.exam_id = ? AND s.staff_id = ?
       `;
-   const [results]=   await db.query(query, [ stu_id, cls_id, thatdate, statusn,staff_id,stu_name]);
-      if (results.affectedRows === 1) {
-        return res.status(200).json({ message: "Student data saved successfully." });
-    } else {
-        return res.status(500).json({ message: "Failed to save student data." });
+      const [results] = await db.query(getQuery, [exam_id, staff_id]); // Pass exam_id and staff_id as an array
+  
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Exam data not found." });
+      } else {
+        return res.status(200).json(results);
+      }
+    } catch (error) {
+      console.error("Error fetching back exam data:", error);
+      return res.status(500).json({ message: "Internal server error." });
     }
-} catch (err) {
-    console.log("Error saving student data:", err);
-    return res.status(500).json({ message: "Internal server error." });
-}
+  });
+  
+
+
+  router.get('/vanattenance/:staff_id', async (req, res) => {
+    const { staff_id } = req.params;
+    
+    console.log(`Fetching students for staff_id: ${staff_id}`);
+    
+    try {
+        const getQuery = `
+            SELECT stu_id, stu_name, van, cls_id, staff_id 
+            FROM students_master 
+            WHERE staff_id = ? AND van_student = 'yes'
+        `;
+        
+        const [results] = await db.query(getQuery, [staff_id]);
+
+        if (results.length === 0) {
+            console.warn(`No students found for staff_id: ${staff_id}`);
+            return res.status(404).json({ message: "Students data not found." });
+        } else {
+            return res.status(200).json(results);
+        }
+    } catch (error) {
+        console.error("Error fetching van Students data:", error);
+        return res.status(500).json({ message: "Internal server error." });
+    }
 });
+
+
+
+
+  
+router.post('/vanattenancepost', async (req, res) => {
+  const { staff_id, stu_name, stu_id, cls_id, thatdate, statusn } = req.body;
+  console.log(staff_id,stu_name,stu_id,cls_id,thatdate, statusn);
+  
+
+  try {
+      const query = `
+          INSERT INTO van_attenance (stu_id, cls_id, thatdate, statusn, staff_id, stu_name)
+          VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      const [results] = await db.query(query, [stu_id, cls_id, thatdate, statusn, staff_id, stu_name]);
+
+      if (results.affectedRows === 1) {
+          return res.status(200).json({ message: "Student data saved successfully." });
+      } else {
+          return res.status(500).json({ message: "Failed to save student data." });
+      }
+  } catch (err) {
+      console.log("Error saving student data:", err);
+      return res.status(500).json({ message: "Internal server error." });
+  }
+});
+
 
 
 router.get(`/vanattenancedetails/:staff_id`,async(req,res)=>{

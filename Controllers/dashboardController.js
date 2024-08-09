@@ -206,6 +206,32 @@ ORDER BY
             res.status(500).json({ message: "Internal server error" });
         }
     });
-    
+
+
+    router.get('/empAttendChart', async (req, res) => {
+        const { staff_id, year } = req.query;
+      
+        if (!staff_id || !year) {
+          return res.status(400).json({ message: "Missing required query parameters: staff_id and year" });
+        }
+      
+        try {
+          const query = `
+            SELECT 
+              MONTH(created_at) AS month, 
+              COUNT(*) AS count 
+            FROM staffs_attendance 
+            WHERE staff_id = ? AND YEAR(created_at) = ?
+            GROUP BY MONTH(created_at)
+            ORDER BY MONTH(created_at)
+          `;
+          const [rows] = await db.query(query, [staff_id, year]);
+      
+          res.status(200).json(rows);
+        } catch (err) {
+          console.error("Error fetching attendance data:", err);
+          res.status(500).json({ message: "Internal server error" });
+        }
+      });
     return router;
 }
