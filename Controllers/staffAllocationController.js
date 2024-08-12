@@ -102,7 +102,6 @@ module.exports = (db) => {
                     return res.status(200).json({ message: "Staff and class allocated successfully." });
                 } else {
                     await connection.rollback();
-                    
                     return res.status(400).json({ message: "Failed to allocate staff and class." });
                 }
             } catch (err) {

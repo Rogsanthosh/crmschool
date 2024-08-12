@@ -639,7 +639,6 @@ module.exports = (db) => {
 
 
   router.post('/feesallocationforclass', async (req, res) => {
-    console.log(`recive data ;${req.body}`);
     try {
       const { cls_id, tution_fees } = req.body;
   
@@ -647,7 +646,6 @@ module.exports = (db) => {
   
       // Example query to update tuition fees based on class id
       const updateQuery = `UPDATE class SET tution_fees = ? WHERE cls_id = ?`;
-      
   
       // Assuming you have a database connection and db object initialized
       db.query(updateQuery, [tution_fees, cls_id], (err, result) => {
@@ -688,33 +686,36 @@ const [results] = await db.query(getQuery,[cls_id]);
       return res.status(500).json({ message: "Internal server error." });
     }
   });
-  router.put('/allfeesalloc/:stu_id', async (req, res) => {
-    const data = req.body;
-    console.log('Received data:', data);
-    try {
-      const { tution_fees, transport_fees, additional_fees, firstinstallment, secondinstallment, discount, total_fees } = req.body;
-      console.log(tution_fees);
-      console.log(transport_fees);
-      console.log(additional_fees);
-      console.log(discount);
-      console.log(total_fees);
-  
-      const stu_id = req.params.stu_id;
-      const putQuery = `UPDATE students_master SET tution_fees = ?, transport_fees = ?, additional_fees = ?, firstinstallment = ?, secondinstallment = ?, discount = ?, total_fees = ? WHERE stu_id = ?`;
-      const [results] = await db.query(putQuery, [tution_fees, transport_fees, additional_fees, firstinstallment, secondinstallment, discount || null, total_fees, stu_id]);
-  
+
+  router.put(`/allfeesalloc/:stu_id`,async(req,res)=>{
+    try{
+      const {tution_fees,transport_fees,additional_fees,discount,total_fees}= req.body
+      console.log(tution_fees)
+      console.log(transport_fees)
+      console.log(additional_fees)
+      console.log(discount)
+      console.log(total_fees)
+     
+      const stu_id = req.params.stu_id
+      const putQuery =`update students_master set tution_fees =? ,transport_fees =?, additional_fees=? ,discount=?,total_fees=? where stu_id =?`
+      const [results] = await db.query(putQuery, [tution_fees,transport_fees,additional_fees,discount,total_fees,stu_id]);
+
       if (results.affectedRows === 0) {
-        return res.status(404).json({ message: "Student data not found or no changes made." });
+        return res
+          .status(404)
+          .json({ message: "Student data not found or no changes made." });
       } else {
-        return res.status(200).json({ message: "Student data updated successfully." });
+        return res
+          .status(200)
+          .json({ message: "Student data updated successfully." });
       }
     } catch (err) {
       console.log("Error updating student data:", err);
       return res.status(500).json({ message: "Internal server error." });
     }
-  });
 
-  
+    
+  })
   router.get(`/getpayfess/:stu_id`,async (req,res)=>{
     try {
       const stu_id = req.params.stu_id
@@ -870,7 +871,7 @@ INNER JOIN
       return res.status(500).json({ message: "Internal server error." });
     }
   });
-router.get('/payfeestud/:stu_id',async(req,res)=>{
+router.get(`/payfeestud/:stu_id`,async(req,res)=>{
   try{
     const stu_id = req.params.stu_id
    const getQuery= `SELECT stu.*, cls.cls_name
@@ -879,7 +880,7 @@ FROM students_master AS stu
 inner join class as cls on stu.cls_id = cls.cls_id
 WHERE stu.stu_id = ?`
     const [results] = await db.query(getQuery,[stu_id]);
-    // console.log({results})
+    console.log({results})
     if (results.length == 0) {
       return res
         .status(404)
@@ -897,65 +898,44 @@ WHERE stu.stu_id = ?`
   }
 });
 
-
-router.post('/feeslogdata', async (req, res) => {
-  console.log("Received data:", req.body);
-  const { stu_id, stu_name, payingfee, remainingfee, feedate, paymentMethod } = req.body;
-
-  // Ensure remainingfee is a valid number
-  if (isNaN(remainingfee)) {
-    return res.status(400).json({ message: 'Invalid remaining fee' });
-  }
-
-  try {
-    // Start a transaction
-    await db.query('START TRANSACTION');
-
-    // Insert fees log data into collect_fee
-    const insertQuery = `INSERT INTO collect_fee (stu_id, stu_name, payingfee, remainingfee, feedate, payment_method) VALUES (?, ?, ?, ?, ?, ?)`;
-    const [result] = await db.query(insertQuery, [stu_id, stu_name, payingfee, remainingfee, feedate, paymentMethod]);
-
-    // Update remaining fee in students_master table
-    const updateQuery = `UPDATE students_master SET pending_fees = ? WHERE stu_id = ?`;
-    await db.query(updateQuery, [remainingfee, stu_id]);
-
-    // Commit the transaction
-    await db.query('COMMIT');
-
-    return res.status(201).json({ feeslogid: result.insertId });
+router.post(`/feeslogdata`,async(req,res)=>{
+  try{
+    const {stu_id,stu_name,payingfee,remainingfee,feedate} =req.body
+    const insertQuery = `insert into collect_fee (stu_id,stu_name,payingfee,remainingfee,feedate) values (?,?,?,?,?)`
+    db.query(insertQuery, [stu_id,stu_name,payingfee,remainingfee,feedate], (err, result) => {
+      if (err) {
+        console.error('Error updating  fees log:', err);
+        res.status(500).json({ message: 'Failed to update tuition fees' });
+        return;
+      }
+      console.log(' fees log updated successfully');
+      res.status(200).json({ message: 'Tuition fees updated successfully' });
+    });
   } catch (error) {
-    console.error('Error logging fees and updating student:', error);
-    await db.query('ROLLBACK'); // Rollback in case of error
+    console.error('Error in feeslog:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
 
-
-router.get('/feesslipprint/:feeslogid', async (req, res) => {
+router.get(`/feesslipprint/:feeslogid`, async (req, res) => {
   try {
     const feeslogid = req.params.feeslogid;
-    console.log(feeslogid);
-    const getQuery = `
-      SELECT col.*, stu.cls_id, cls.cls_name 
-      FROM collect_fee AS col
-      INNER JOIN students_master AS stu ON col.stu_id = stu.stu_id
-      INNER JOIN class AS cls ON stu.cls_id = cls.cls_id
-      WHERE feeslogid = ?`; // Assuming 'id' is the primary key in collect_fee
+    const getQuery = `select col.*,stu.cls_id,cls.cls_id,cls.cls_name from collect_fee as col inner join 
+students_master as stu on col.stu_id = stu.stu_id inner join class as cls on stu.cls_id = cls.cls_id where col.stu_id =?`;
 
     const [results] = await db.query(getQuery, [feeslogid]);
 
     if (results.length === 0) {
       return res.status(404).json({ message: "Fees log data not found." });
     } else {
-      return res.status(200).json(results[0]); // Return the first result
+      return res.status(200).json(results); // Return only the first (and only) result
     }
   } catch (error) {
     console.error("Error fetching Fees log data:", error);
     return res.status(500).json({ message: "Internal server error." });
   }
 });
-
-router.get('/feesslip/:stu_id', async (req, res) => {
+router.get(`/feesslip/:stu_id`, async (req, res) => {
   try {
     const stu_id = req.params.stu_id;
     const getQuery = `SELECT col.* ,cls.cls_id,FROM collect_fee WHERE stu_id = ?`;
