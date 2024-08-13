@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const moment = require("moment");
+const cors = require("cors");
 const currentDate = moment().format('YYYY-MM-DD HH:mm:ss');
 
 module.exports = (db) => {
+
+
+    router.use(cors());
     router.post('/saveFeesLogs', async (req, res) => {
         const connection = await db.getConnection();
         try {
@@ -361,6 +365,62 @@ module.exports = (db) => {
             connection.release();
         }
     });
+    
+
+    router.get('/feeCollectionDashboard', async (req, res) => {
+        console.log("collect fees data");
+    
+        // Get the date from the query parameter or use the current date
+        const currentDate = req.query.date || moment().format("YYYY-MM-DD");
+    
+        // SQL query to get the total amount of fees collected per student with optional date filter
+        const query = `
+            SELECT stu_id, stu_name, SUM(payingfee) AS total_amount, MAX(remainingfee) AS remainingfee
+            FROM collect_fee
+            WHERE feedate = ?
+            GROUP BY stu_id, stu_name
+        `;
+    
+        try {
+            // Execute the query with the date parameter
+            const [results] = await db.query(query, [currentDate]);
+            
+            // Log the results for debugging
+            console.log('Query results:', results);
+    
+            // Send the results as JSON
+            res.status(200).json(results);
+        } catch (error) {
+            console.error('Error executing query:', error);
+            res.status(500).json({ error: 'Error fetching data' });
+        }
+    });
+    
+
+// GET API to fetch students with pending fees
+router.get('/pending-fees', (req, res) => {
+    const query = `
+        SELECT 
+            stu_id, stu_name, cls_id, pending_fees, total_fees, transport_fees, additional_fees
+        FROM 
+            students_master 
+        WHERE 
+            pending_fees > 0
+        ORDER BY 
+            pending_fees DESC
+    `;
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            console.error('Error fetching pending fees students:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+        
+        res.json(results);
+    });
+});
+
+
 
     return router;
 };

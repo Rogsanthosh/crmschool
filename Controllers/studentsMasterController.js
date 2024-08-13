@@ -2,10 +2,15 @@ const express = require("express");
 const router = express.Router();
 const moment = require("moment");
 const multer = require("multer");
+const cors = require("cors");
 const currentDate = moment().format("YYYY-MM-DD HH:mm:ss");
 module.exports = (db, upload) => {
 
+  router.use(cors());
   router.post("/saveStudents", upload.single("stu_img"), async (req, res) => {
+
+
+    console.log("runnn");
     try {
       const {
         staff_id,
@@ -182,166 +187,75 @@ module.exports = (db, upload) => {
   });
   
 
-  router.put(
-    "/updateStudent/:stu_id",
-    upload.single("stu_img"),
-    async (req, res) => {
-      try {
-        const stuId = req.params.stu_id;
+
+  router.put("/updateStudent/:id", async (req, res) => {
+    try {
+        const stuId = req.params.id;
         const {
-          staff_id,
-          cls_id,
-          scheme,
-          stu_name,
-          stu_aadhar,
-          gender,
-          dob,
-          van,
-          community,
-          cast_name,
-          religion,
-          father_name,
-          father_mobile,
-          father_occupation,
-          father_annual_income,
-          mother_name,
-          mother_mobile,
-          mother_occupation,
-          mother_annual_income,
-          address,
+            stu_name,
+            aadhar_no,
+            gender,
+            dob,
+            date_of_join,
+            cls_id,
+            community,
+            father_name,
+            father_mobile,
+            mother_name,
+            mother_mobile,
+            bookingfees,
+            address,
+            Totalfees
         } = req.body;
-        const stu_img = req.file ? req.file.filename : null;
 
-        if (
-          !staff_id ||
-          !cls_id ||
-          
-          !stu_name ||
-          !stu_aadhar ||
-          !gender ||
-          !dob ||
-          !van ||
-          !community ||
-          !cast_name ||
-          !religion ||
-          !father_name ||
-          !father_mobile ||
-          !father_occupation ||
-          !father_annual_income ||
-          !mother_name ||
-          !mother_mobile ||
-          !mother_occupation ||
-          !mother_annual_income ||
-          !address
-        ) {
-          return res.status(400).json({ message: "All fields are required." });
-        }
+        const updateQuery = `
+            UPDATE students_master 
+            SET 
+                stu_name = ?, 
+                stu_aadhar = ?, 
+                gender = ?, 
+                dob = ?, 
+                date_of_join = ?, 
+                cls_id = ?, 
+                community = ?, 
+                father_name = ?, 
+                father_mobile = ?, 
+                mother_name = ?, 
+                mother_mobile = ?, 
+                bookingfees = ?, 
+                address = ?, 
+                total_fees = ?
+            WHERE stu_id = ?
+        `;
 
-        const existingStudentQuery = `SELECT * FROM students_master WHERE stu_aadhar = ? AND stu_id != ?`;
-        const [existingStudentResult] = await db.query(existingStudentQuery, [
-          stu_aadhar,
-          stuId,
+        const [results] = await db.query(updateQuery, [
+            stu_name,
+            aadhar_no,
+            gender,
+            dob,
+            date_of_join,
+            cls_id,
+            community,
+            father_name,
+            father_mobile,
+            mother_name,
+            mother_mobile,
+            bookingfees,
+            address,
+            Totalfees,
+            stuId
         ]);
 
-        if (existingStudentResult.length > 0) {
-          return res
-            .status(400)
-            .json({
-              message: "Student already exists with the same Aadhar number.",
-            });
-        }
-
-        const currentDate = moment().format("YYYY-MM-DD HH:mm:ss");
-
-        let updateQuery = ``;
-        let updateParams = [];
-
-        if (stu_img) {
-          updateQuery = `
-                    UPDATE students_master 
-                    SET staff_id = ?, cls_id = ?, scheme = ?, stu_name = ?, stu_aadhar = ?, stu_img = ?, gender = ?, dob = ?, van=?
-                        community = ?, cast_name = ?, religion = ?, father_name = ?, father_mobile = ?, father_occupation = ?, 
-                        father_annual_income = ?, mother_name = ?, mother_mobile = ?, mother_occupation = ?, 
-                        mother_annual_income = ?, address = ?, updated_at = ? 
-                    WHERE stu_id = ?
-                `;
-          updateParams = [
-            staff_id,
-            cls_id,
-            scheme,
-            stu_name,
-            stu_aadhar,
-            stu_img,
-            gender,
-            dob,
-            van,
-            community,
-            cast_name,
-            religion,
-            father_name,
-            father_mobile,
-            father_occupation,
-            father_annual_income,
-            mother_name,
-            mother_mobile,
-            mother_occupation,
-            mother_annual_income,
-            address,
-            currentDate,
-            stuId,
-          ];
-        } else {
-          updateQuery = `
-                    UPDATE students_master 
-                    SET staff_id = ?, cls_id = ?, scheme = ?, stu_name = ?, stu_aadhar = ?, gender = ?, dob = ?, van=?
-                        community = ?, cast_name = ?, religion = ?, father_name = ?, father_mobile = ?, father_occupation = ?, 
-                        father_annual_income = ?, mother_name = ?, mother_mobile = ?, mother_occupation = ?, 
-                        mother_annual_income = ?, address = ?, updated_at = ? 
-                    WHERE stu_id = ?
-                `;
-          updateParams = [
-            staff_id,
-            cls_id,
-            scheme,
-            stu_name,
-            stu_aadhar,
-            gender,
-            dob,
-            van,
-            community,
-            cast_name,
-            religion,
-            father_name,
-            father_mobile,
-            father_occupation,
-            father_annual_income,
-            mother_name,
-            mother_mobile,
-            mother_occupation,
-            mother_annual_income,
-            address,
-            currentDate,
-            stuId,
-          ];
-        }
-
-        const [results] = await db.query(updateQuery, updateParams);
-
         if (results.affectedRows === 0) {
-          return res
-            .status(404)
-            .json({ message: "Student data not found or no changes made." });
+            return res.status(404).json({ message: "Student data not found or no data updated" });
         } else {
-          return res
-            .status(200)
-            .json({ message: "Student data updated successfully." });
+            return res.status(200).json({ message: "Student data updated successfully." });
         }
-      } catch (err) {
+    } catch (err) {
         console.log("Error updating student data:", err);
         return res.status(500).json({ message: "Internal server error." });
-      }
     }
-  );
+});
 
   router.delete("/deleteStudent/:stuId", async (req, res) => {
     try {
@@ -365,6 +279,10 @@ module.exports = (db, upload) => {
       return res.status(500).json({ message: "Internal server error." });
     }
   });
+
+  
+  
+
 
   router.get("/getSiblings", async (req, res) => {
     try {
@@ -432,6 +350,7 @@ router.post('/studentsattenance', async (req, res) => {
   }
 });
 
+
 router.get(`/detailattenance/:staff_id`,async(req,res)=>{
 try{
   const staff_id= req.params.staff_id
@@ -450,38 +369,75 @@ try{
 }
 
 })
-router.post('/saveStudentMarks', (req, res) => {
+router.post('/saveStudentMarks', async (req, res) => {
   const { body } = req;
+  console.log(req.body);
 
   if (!Array.isArray(body) || body.length === 0) {
     return res.status(400).json({ error: 'Invalid request body' });
   }
 
-  const values = body.map(student => [
-    student.stu_id,
-    student.stu_name,
-    student.examname,
-   
-    student.tamil !== undefined ? student.tamil : null,
-    student.english !== undefined ? student.english : null,
-    student.maths !== undefined ? student.maths : null,
-    student.science !== undefined ? student.science : null,
-    student.social !== undefined ? student.social : null,
-    student.total !== undefined ? student.total : 0,
-    student.exam_id, // Default to 0 if not provided
-  ]);
+  try {
+    // Construct the SQL WHERE clause dynamically
+    const conditions = body.map(student => `(stu_id = ${student.stu_id} AND exam_id = ${student.exam_id})`).join(' OR ');
+    const checkSql = `SELECT stu_id, exam_id FROM examsandmarks WHERE ${conditions}`;
 
-  const sql = 'INSERT INTO examsandmarks (stu_id, stu_name, examname, tamil, english, maths, science, social, total,exam_id) VALUES ?';
+    // Use the promise-based API for querying
+    const [results] = await db.query(checkSql);
 
-  db.query(sql, [values], (err, result) => {
-    if (err) {
-      console.error('Error saving marks:', err);
-      return res.status(500).json({ error: 'Failed to save marks' });
+    const existingRecords = results.map(result => `${result.stu_id}-${result.exam_id}`);
+    const newRecords = body.filter(student => !existingRecords.includes(`${student.stu_id}-${student.exam_id}`));
+
+    if (newRecords.length === 0) {
+      return res.status(200).json({ error: 'All records already exist' });
     }
-    console.log('Number of records inserted: ' + result.affectedRows);
-    res.status(200).json({ message: 'Marks saved successfully' });
-  });
+
+    // Insert or update the new records
+    const values = newRecords.map(student => [
+      student.stu_id,
+      student.stu_name,
+      student.examname,
+      student.tamil !== undefined ? student.tamil : null,
+      student.english !== undefined ? student.english : null,
+      student.maths !== undefined ? student.maths : null,
+      student.science !== undefined ? student.science : null,
+      student.social !== undefined ? student.social : null,
+      student.total !== undefined ? student.total : 0,
+      student.exam_id
+    ]);
+
+    const insertSql = `
+      INSERT INTO examsandmarks (stu_id, stu_name, examname, tamil, english, maths, science, social, total, exam_id)
+      VALUES ?
+      ON DUPLICATE KEY UPDATE
+        stu_name = VALUES(stu_name),
+        examname = VALUES(examname),
+        tamil = VALUES(tamil),
+        english = VALUES(english),
+        maths = VALUES(maths),
+        science = VALUES(science),
+        social = VALUES(social),
+        total = VALUES(total)
+    `;
+
+    // Execute the insert query
+    const [insertResult] = await db.query(insertSql, [values]);
+    
+    console.log('Number of records inserted/updated: ' + insertResult.affectedRows);
+
+    if (newRecords.length < body.length) {
+      return res.status(200).json({ message: 'Some records were already saved, and the remaining were saved successfully.' });
+    } else {
+      return res.status(200).json({ message: 'Marks saved successfully' });
+    }
+
+  } catch (err) {
+    console.error('Error processing request:', err);
+    return res.status(500).json({ error: 'Failed to save marks' });
+  }
 });
+
+
 
 
 router.get(`/examname`,async(req,res)=>{
@@ -523,60 +479,123 @@ router.get(`/examname`,async(req,res)=>{
     }
     
     })
-    router.get('/examdata/:exam_id', async (req, res) => {
-      try {
-          const exam_id = req.params.exam_id;
-          const getQuery = 'SELECT * FROM examsandmarks WHERE exam_id = ?';
-          const [results] = await db.query(getQuery, [exam_id]); // Pass exam_id as an array
-          if (results.length === 0) {
-              return res.status(404).json({ message: "Exam data not found." });
-          } else {
-              return res.status(200).json(results);
-          }
-      } catch (error) {
-          console.error("Error fetching back exam data:", error);
-          return res.status(500).json({ message: "Internal server error." });
-      }
-  });
 
-router.get(`/vanattenance/:staff_id`,async(req,res)=>{
-  try{
-    const staff_id = req.params.staff_id
-    const getQuery=`select stu.stu_id,stu.stu_name,stu.van,stu.cls_id,cls.cls_id,cls.staff_id from students_master as stu inner join class_teachers as cls on stu.cls_id = cls.cls_id where cls.staff_id = ? and van = 1`
-    const [results]= await db.query(getQuery,staff_id)
-    if (results.length == 0) {
-      return res.status(404).json({ message: "Students data not found." });
-    } else {
-     
+
+
+    router.put('/updateExamData', async (req, res) => {
+      const { stu_id, exam_id, ...updatedFields } = req.body;
+      console.log(req.body);
       
-      return res.status(200).json(results);
-    }
-  } catch (error) {
-    console.error("Error fetching van Students  data:", error);
-    return res.status(500).json({ message: "Internal server error." });
-  }
-  
-  })
-  router.post('/vanattenancepost', async (req, res) => {
-    const {staff_id, stu_name, stu_id, cls_id, thatdate, statusn } = req.body;
-  
+    
+      if (!stu_id || !exam_id) {
+        return res.status(400).json({ error: 'stu_id and exam_id are required' });
+      }
+    
+      try {
+        const updateFields = Object.keys(updatedFields)
+          .map(key => `${key} = ?`)
+          .join(', ');
+    
+        const updateValues = Object.values(updatedFields);
+    
+        const updateSql = `
+          UPDATE examsandmarks
+          SET ${updateFields}
+          WHERE stu_id = ? AND exam_id = ?
+        `;
+    
+        const [result] = await db.query(updateSql, [...updateValues, stu_id, exam_id]);
+    
+        if (result.affectedRows > 0) {
+          res.status(200).json({ success: true, message: 'Data updated successfully' });
+        } else {
+          res.status(400).json({ success: false, message: 'No matching record found to update' });
+        }
+      } catch (error) {
+        console.error('Error updating exam data:', error);
+        res.status(500).json({ error: 'Failed to update exam data' });
+      }
+    });
+
+  router.get('/examdata/:exam_id', async (req, res) => {
     try {
-     
-      const query = `
-        INSERT INTO van_attenance ( stu_id, cls_id, thatdate, statusn,staff_id,stu_name)
-        VALUES ( ?, ?, ?, ?,?,?)
+      const exam_id = req.params.exam_id;
+      const staff_id = req.query.staff_id; // Get the staff_id from query params
+  
+      const getQuery = `
+        SELECT e.*
+        FROM examsandmarks e
+        JOIN students_master s ON e.stu_id = s.stu_id
+        WHERE e.exam_id = ? AND s.staff_id = ?
       `;
-   const [results]=   await db.query(query, [ stu_id, cls_id, thatdate, statusn,staff_id,stu_name]);
-      if (results.affectedRows === 1) {
-        return res.status(200).json({ message: "Student data saved successfully." });
-    } else {
-        return res.status(500).json({ message: "Failed to save student data." });
+      const [results] = await db.query(getQuery, [exam_id, staff_id]); // Pass exam_id and staff_id as an array
+  
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Exam data not found." });
+      } else {
+        return res.status(200).json(results);
+      }
+    } catch (error) {
+      console.error("Error fetching back exam data:", error);
+      return res.status(500).json({ message: "Internal server error." });
     }
-} catch (err) {
-    console.log("Error saving student data:", err);
-    return res.status(500).json({ message: "Internal server error." });
-}
+  });
+  
+
+
+  router.get('/vanattenance/:staff_id', async (req, res) => {
+    const { staff_id } = req.params;
+    
+    console.log(`Fetching students for staff_id: ${staff_id}`);
+    
+    try {
+        const getQuery = `
+            SELECT stu_id, stu_name, van, cls_id, staff_id 
+            FROM students_master 
+            WHERE staff_id = ? AND van_student = 'yes'
+        `;
+        
+        const [results] = await db.query(getQuery, [staff_id]);
+
+        if (results.length === 0) {
+            console.warn(`No students found for staff_id: ${staff_id}`);
+            return res.status(404).json({ message: "Students data not found." });
+        } else {
+            return res.status(200).json(results);
+        }
+    } catch (error) {
+        console.error("Error fetching van Students data:", error);
+        return res.status(500).json({ message: "Internal server error." });
+    }
 });
+
+
+
+
+  
+router.post('/vanattenancepost', async (req, res) => {
+  const { staff_id, stu_name, stu_id, cls_id, thatdate, statusn } = req.body;
+  console.log(staff_id,stu_name,stu_id,cls_id,thatdate, statusn);
+  
+
+  try {
+      const query = `
+          INSERT INTO van_attenance (stu_id, cls_id, thatdate, statusn, staff_id, stu_name)
+          VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      const [results] = await db.query(query, [stu_id, cls_id, thatdate, statusn, staff_id, stu_name]);
+
+      if (results.affectedRows === 1) {
+          return res.status(200).json({ message: "Student data saved successfully." });
+      } else {
+          return res.status(500).json({ message: "Failed to save student data." });
+      }
+  } catch (err) {
+      console.log("Error saving student data:", err);
+      return res.status(500).json({ message: "Internal server error." });
+  }
+});
+
 
 
 router.get(`/vanattenancedetails/:staff_id`,async(req,res)=>{
@@ -636,6 +655,7 @@ router.get(`/vanattenancedetails/:staff_id`,async(req,res)=>{
             return;
         }
         res.status(201).json({ message: 'Student enquiry saved successfully!', id: result.insertId });
+        return res
     });
 });
 
@@ -653,37 +673,129 @@ router.get("/getEnquiryStudents", async (req, res) => {
   }
 });
 
+router.delete("/deleteEnquiryStudent/:id", async (req, res) => {
+  try {
+    const stuId = req.params.id;  // Correctly extract the parameter
+    console.log("Received student ID for deletion:", stuId);  // Debug log
+    if (!stuId) {
+      return res.status(400).json({ message: "Student ID is required." });
+    }
+    const deleteQuery = `DELETE FROM student_enquiry WHERE id = ?`;
+    const [results] = await db.query(deleteQuery, [stuId]);
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: "Student data not found or no data deleted" });
+    } else {
+      return res.status(200).json({ message: "Student data deleted successfully." });
+    }
+  } catch (err) {
+    console.log("Error deleting student data :", err);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
 
-router.post('/bookingstudents', (req,res) => {
+router.put("/updateEnquiryStudent/:id", async (req, res) => {
+  try {
+    const stuId = req.params.id;
+    console.log(stuId);
+    const {
+      student_name,
+      aadhar_no,
+      gender,
+      date_of_birth,
+      class: classId,
+      community,
+      father_name,
+      father_mobile,
+      mother_name,
+      mother_mobile,
+      address,
+    } = req.body;
+
+    const updateQuery = `
+      UPDATE student_enquiry
+      SET 
+        student_name = ?, 
+        aadhar_no = ?, 
+        gender = ?, 
+        date_of_birth = ?, 
+        class = ?, 
+        community = ?, 
+        father_name = ?, 
+        father_mobile = ?, 
+        mother_name = ?, 
+        mother_mobile = ?, 
+        address = ?
+      WHERE id = ?
+    `;
+
+    const [results] = await db.query(updateQuery, [
+      student_name,
+      aadhar_no,
+      gender,
+      date_of_birth,
+      classId,
+      community,
+      father_name,
+      father_mobile,
+      mother_name,
+      mother_mobile,
+      address,
+      stuId,
+    ]);
+
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: "Student data not found or no data updated" });
+    } else {
+      return res.status(200).json({ message: "Student data updated successfully." });
+    }
+  } catch (err) {
+    console.log("Error updating student data:", err);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+router.post('/bookingstudents', async (req, res) => {
   const data = req.body;
   console.log(data);
-  const sql = `INSERT INTO student_booking 
-    (class, student_name, date_of_birth, gender, date_of_join, father_name, father_mobile, mother_name, mother_mobile, address, aadhar_no, community, bookingfees) 
+  
+
+  const sqlBooking = `INSERT INTO student_booking 
+    (class, student_name, dob, gender, date_of_join, father_name, father_mobile, mother_name, mother_mobile, address, aadhar_no, community, bookingfees) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  db.query(sql, [
-    data.cls_id, 
-    data.stu_name, 
-    data.dob, 
-    data.gender, 
-    data.doj, 
-    data.father_name, 
-    data.father_mobile, 
-    data.mother_name, 
-    data.mother_mobile, 
-    data.address, 
-    data.stu_aadhar, 
-    data.community, 
-    data.Bookingfees
-  ], (err,result)=>{
-    if(err){
-        res.status(500).json({message:"Internal server error."})
-        console.log("Error :",err)
-    }else{
-        res.status(200).json({message:" Data added successfully."})
-    }
-})
-})
+  const sqlEnquiryUpdate = `UPDATE student_enquiry 
+                            SET confirm = 'yes' 
+                            WHERE id = ?`;
+
+  try {
+    // Execute the first query for booking
+    await db.query(sqlBooking, [
+      data.cls_id, 
+      data.stu_name, 
+      data.dob, 
+      data.gender, 
+      data.doj, 
+      data.father_name, 
+      data.father_mobile, 
+      data.mother_name, 
+      data.mother_mobile, 
+      data.address, 
+      data.stu_aadhar, 
+      data.community, 
+      data.Bookingfees
+    ]);
+
+    // If the booking is successful, update the student_enquiry table
+    await db.query(sqlEnquiryUpdate, [data.enquiry_id]);
+
+    return res.status(200).json({ message: "Data added and enquiry confirmed successfully." });
+  } catch (err) {
+    console.log("Error:", err);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+
 
 router.get("/getBookingStudents", async (req, res) => {
   try {
@@ -698,44 +810,130 @@ router.get("/getBookingStudents", async (req, res) => {
     return res.status(500).json({ message: "Internal server error." });
   }
 });
+router.delete("/deleteBookingStudent/:id", async (req, res) => {
+  try {
+    const stuId = req.params.id;  // Correctly extract the parameter
+    console.log("Received student ID for deletion:", stuId);  // Debug log
+    if (!stuId) {
+      return res.status(400).json({ message: "Student ID is required." });
+    }
+    const deleteQuery = `DELETE FROM student_booking WHERE id = ?`;
+    const [results] = await db.query(deleteQuery, [stuId]);
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: "Student data not found or no data deleted" });
+    } else {
+      return res.status(200).json({ message: "Student data deleted successfully." });
+    }
+  } catch (err) {
+    console.log("Error deleting student data :", err);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
 
 
-router.post('/addstudents', (req, res) => {
+router.put('/updateBookingStudent/:id', async (req, res) => {
+  try {
+      const { id } = req.params;
+      console.log(id);
+      const {
+          cls_id,
+          stu_name,
+          stu_aadhar,
+          gender,
+          dob,
+          doj,
+          community,
+          father_name,
+          father_mobile,
+          mother_name,
+          mother_mobile,
+          Bookingfees,
+          address,
+      } = req.body;
+
+      const updateQuery = `
+          UPDATE student_booking 
+          SET class = ?, student_name = ?, aadhar_no = ?, gender = ?, dob = ?, 
+              date_of_join = ?, community = ?, father_name = ?, father_mobile = ?, 
+              mother_name = ?, mother_mobile = ?, Bookingfees = ?, address = ? 
+          WHERE id = ?
+      `;
+
+      const [results] = await db.query(updateQuery, [
+          cls_id,
+          stu_name,
+          stu_aadhar,
+          gender,
+          dob,
+          doj,
+          community,
+          father_name,
+          father_mobile,
+          mother_name,
+          mother_mobile,
+          Bookingfees,
+          address,
+          id,
+      ]);
+
+      if (results.affectedRows === 0) {
+          res.status(404).json({ message: 'Student booking not found or no changes made.' });
+      } else {
+          res.status(200).json({ message: 'Student booking updated successfully.' });
+      }
+  } catch (err) {
+      console.error('Error updating student booking:', err);
+      res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+// ============================================================
+router.post('/addstudents', async(req, res) => {
   const data = req.body;
   console.log('Received data:', data);
-  const sql = `INSERT INTO students_data 
-    (class, student_name, date_of_birth, gender, date_of_join, father_name, father_mobile, mother_name, mother_mobile, address, aadhar_no, community, bookingfees, totalfees) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  db.query(sql, [
-    data.cls_id, 
-    data.stu_name, 
-    data.dob, 
-    data.gender, 
-    data.doj, 
-    data.father_name, 
-    data.father_mobile, 
-    data.mother_name, 
-    data.mother_mobile, 
-    data.address, 
-    data.stu_aadhar, 
-    data.community, 
+  const apply_date = moment().format("YYYY-MM-DD");
+
+  const sql = `INSERT INTO students_master 
+    (cls_id, stu_name, gender, dob, community, father_name, father_mobile, mother_name, mother_mobile, address, bookingfees, date_of_join, apply_date) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const sqlBookingUpdate = `UPDATE student_booking 
+                            SET confirm = 'yes' 
+                            WHERE id = ?`;
+
+try{
+  await db.query(sql, [
+    data.cls_id,
+    data.stu_name,
+    data.gender,
+    data.dob,
+    data.community,
+    data.father_name,
+    data.father_mobile,
+    data.mother_name,
+    data.mother_mobile,
+    data.address,
     data.Bookingfees,
-    data.totalfees
-  ], (err, result) => {
-    if (err) {
-        console.error("Error executing query:", err);
-        return res.status(500).json({ message: "Internal server error." });
-    } else {
-        console.log("Query result:", result);
-        return res.send.json({result});
-    }
-  });
+    data.totalfees,
+    data.doj,
+    apply_date
+  ]);
+  await db.query(sqlBookingUpdate, [data.stu_id])
+  return res.status(200).json({ message: "Data added and enquiry confirmed successfully." });
+  } catch (err) {
+    console.log("Error:", err);
+    return res.status(500).json({ message: "Internal server error." });
+  }
 });
+
+  
+ 
+
+// ======================================================================
 
 router.get("/getAllStudents", async (req, res) => {
   try {
-    const getQuery = `SELECT * FROM students_data`;
+    const getQuery = `SELECT * FROM students_master`;
     const [results] = await db.query(getQuery);
     if (results.length === 0) {
       return res.status(404).json({ message: "Students data not found." });

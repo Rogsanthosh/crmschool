@@ -137,13 +137,17 @@ module.exports = (db) => {
         }
     });
     
+
+
+
     router.get("/getsecalloc/:cls_id", async (req, res) => {
-        const sql = `
-          SELECT class_teachers.*,class_allocation.sec_id FROM class_teachers
-          INNER JOIN class_allocation ON class_teachers.cls_id = class_allocation.cls_id 
-          WHERE class_teachers.cls_id = ?
-        `;
         const cls_id = req.params.cls_id;
+        const sql = `
+          SELECT sections.sec_id, sections.sec_name 
+          FROM sections
+          INNER JOIN class_allocation ON sections.sec_id = class_allocation.sec_id
+          WHERE class_allocation.cls_id = ?
+        `;
       
         try {
           const [results] = await db.query(sql, [cls_id]);
@@ -156,6 +160,7 @@ module.exports = (db) => {
           return res.status(500).json({ message: "Internal server error" });
         }
       });
+      
     router.get("/studentport/:cls_id", async (req, res) => {
         try {
             const getQuery = "SELECT * FROM students_master INNER JOIN class ON students_master.cls_id = class.cls_id WHERE class.cls_id = ?";
@@ -176,31 +181,47 @@ const id = req.params.cls_id
         }
       });
 
-      router.post('/assignSection', async (req, res) => {
-    const { selectedStudentsIds, selectedSection } = req.body;
 
-    let sqlQuery = 'UPDATE students_master SET cls_allocation_id = ? WHERE ';
+// new
+router.post('/assignSection', async (req, res) => {
+    const { selectedStudentsIds, selectedSectionName, selectedStaff } = req.body;
+  
+    let sqlQuery = 'UPDATE students_master SET section = ?, staff_id = ? WHERE ';
     const conditions = [];
-    const values = [selectedSection];
-
+    const values = [selectedSectionName, selectedStaff];
+  
     selectedStudentsIds.forEach(studentId => {
-        const condition = '(stu_id = ?)';
-        conditions.push(condition);
-        values.push(studentId);
+      const condition = '(stu_id = ?)';
+      conditions.push(condition);
+      values.push(studentId);
     });
-
+  
     sqlQuery += conditions.join(' OR ');
-
+  
     try {
-        
-        const [result] = await db.query(sqlQuery, values);
-        res.json({ affectedRows: result.affectedRows });
-        // Close connection after use
+      const [result] = await db.query(sqlQuery, values);
+      res.json({ affectedRows: result.affectedRows });
     } catch (error) {
-        console.error('Error updating students:', error);
-        res.status(500).json({ error: error });
+      console.error('Error updating students:', error);
+      res.status(500).json({ error: error });
     }
-});
+  });
+  
+  
+  router.get("/staffs", async (req, res) => {
+    try {
+      const sql = "SELECT * FROM staffs_master WHERE isAlive = 1";
+      const [results] = await db.query(sql);
+      res.status(200).json(results);
+    } catch (error) {
+      console.error('Error fetching staffs:', error);
+      res.status(500).json({ message: "Internal server error." });
+    }
+  });
+  
+
+
+//    =============================================================================
 
     
     router.get('/getStuAllocation',async(req,res)=>{

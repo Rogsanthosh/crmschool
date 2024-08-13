@@ -7,6 +7,8 @@ const currentDate = moment().format('YYYY-MM-DD HH:mm:ss');
 module.exports = (db, upload) => {
 
     router.post('/saveStaff', upload.single('staff_img'), async (req, res) => {
+      console.log(req.body);
+      
       try {
           const { dept_id, role_id, staff_name, email, mobile, gender, qualification, experience, address } = req.body;
           const staff_img = req.file ? req.file.filename : null;
@@ -38,15 +40,13 @@ module.exports = (db, upload) => {
           if (!address) {
               return res.status(400).json({ message: "Staff address is required" });
           }
-          if (!staff_img) {
-              return res.status(400).json({ message: "Staff Image is required" });
-          }
+          
 
           const existingStaffQuery = `SELECT * FROM staffs_master WHERE email = ? OR mobile = ?`;
           const [existingStaffResults] = await db.query(existingStaffQuery, [email, mobile]);
 
           if (existingStaffResults.length > 0) {
-              if (existingStaffResults[0].isAlive === 0) {
+              if (existingStaffResults[0].isAlive == 0) {
                   return res.status(400).json({ message: "This employee is waiting for rejoining approval. Please confirm with the principal." });
               } else {
                   return res.status(400).json({ message: "Employee with this email or mobile already exists." });
@@ -91,25 +91,29 @@ module.exports = (db, upload) => {
         return res.status(500).json({ message: "Internal server error." });
       }
     });
-    router.get("/getStaffdash/:staff_id", async (req, res) => {
-      try {
-        staff_id = req.params.staff_id
-        const getQuery = `SELECT * from staffs_master where staff_id = ? `
-        const [results] = await db.query(getQuery,[staff_id]);
-        if (results.length == 0) {
-          return res.status(404).json({ message: "Sections data not found." });
-        } else {
-          const convertData = results.map((result) => ({
-            ...result,
-            staff_img: `http://localhost:3001/uploads/${result.staff_img}` 
-          }));
-          return res.status(200).json(convertData);
-        }
-      } catch (error) {
-        console.error("Error fetching sections data:", error);
-        return res.status(500).json({ message: "Internal server error." });
-      }
-    });
+
+   
+router.get("/getStaffdash/:staff_id", async (req, res) => {
+  try {
+    const staff_id = req.params.staff_id;
+    const getQuery = `SELECT * FROM staffs_master WHERE staff_id = ?`;
+    const [results] = await db.query(getQuery, [staff_id]);
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Staff data not found." });
+    } else {
+      const convertData = results.map((result) => ({
+        ...result,
+        staff_img: `http://localhost:3001/uploads/${result.staff_img}`
+      }));
+      console.log(convertData);
+      return res.status(200).json(convertData);
+    }
+  } catch (error) {
+    console.error("Error fetching staff data:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
 
     router.put('/updateStaff/:staffId', upload.single('staff_img'), async (req, res) => {
       try {
@@ -258,23 +262,55 @@ module.exports = (db, upload) => {
         return res.status(500).json({ message: "Internal server error." });
       }
     });
-    router.post('/staffattenance', (req, res) => {
-      const { staff_id, statusn, entrytime, thatdate } = req.body;
+    router.post('/empEntry/:staff_id', (req, res) => {
+        console.log(req.body);
     
-      // Example: Insert into database or perform any necessary actions
-      // Replace with your actual database logic
-      // Example using MySQL:
-      const sql = 'INSERT INTO staffs_attendance (staff_id, statusn, entrytime, thatdate) VALUES (?, ?, ?, ?)';
-      db.query(sql, [staff_id, statusn, entrytime, thatdate], (err, result) => {
-        if (err) {
-          console.error('Error recording staff attendance:', err);
-          return res.status(500).json({ error: 'Failed to record attendance' });
+        try {
+            const staff_id = req.params.staff_id;
+            const currentDateTime = moment(req.body.datetime).format('YYYY-MM-DD HH:mm:ss');
+            const currentDate = moment(currentDateTime).format('YYYY-MM-DD');
+    
+          
+    
+                const insertData = 'INSERT INTO staffs_attendance (staff_id, entry_at, created_at, updated_at) VALUES (?, ?, ?, ?)';
+                db.query(insertData, [staff_id, currentDateTime, currentDateTime, currentDateTime], (insertErr, insertRes) => {
+                    if (insertErr) {
+                        console.error(insertErr);
+                        return res.status(500).json({ message: "Internal server error." });
+                    }
+                   return res.status(200).json({ message: "Entry recorded successfully." });
+                });
+            
+        } catch (err) {
+            console.error(err);
+           return res.status(500).json({ message: "Internal server error." });
         }
-        console.log('Attendance recorded successfully');
-        res.status(200).json({ message: 'Attendance recorded successfully' });
-      });
     });
-
+    
+    // Route for recording exit
+    router.post('/empExit/:staff_id', (req, res) => {
+        console.log(req.body);
+        try {
+            const staff_id = req.params.staff_id;
+            const currentDateTime = moment(req.body.datetime).format('YYYY-MM-DD HH:mm:ss');
+            const currentDate = moment(currentDateTime).format('YYYY-MM-DD');
+    
+         
+    
+                const updateData = 'UPDATE staffs_attendance SET exit_at = ?, updated_at = ? WHERE staff_id = ? AND DATE(entry_at) = ?';
+                db.query(updateData, [currentDateTime, currentDateTime, staff_id, currentDate], (updateErr, updateRes) => {
+                    if (updateErr) {
+                        console.error(updateErr);
+                        return res.status(500).json({ message: "Internal server error." });
+                    }
+                   return res.status(200).json({ message: "Exit recorded successfully." });
+                });
+          
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ message: "Internal server error." });
+        }
+    });
  router.get(`/getattenancedetails/:staff_id`,async(req,res)=>{
   try{
     const staff_id =req.params.staff_id

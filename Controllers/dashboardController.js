@@ -165,47 +165,63 @@ ORDER BY
           return res.status(500).json({ message: 'Internal server error.' });
         }
       });
-      
+    
+
     router.get('/feePendingStudents', async (req, res) => {
         try {
             const getQuery = `
             SELECT 
-            fa.roll_no,
-            fa.academic_year,
-            fa.fee_category,
-            fa.amount,
-            fa.discount_amount,
-            fa.remaining_amount,
-            cls.cls_name,
-            sec.sec_name,
-            stu.stu_name,
-            stu.stu_img
-        FROM 
-            fees_allocation fa
-        INNER JOIN 
-            students_allocation sa ON sa.roll_no = fa.roll_no
-        INNER JOIN 
-            students_master stu ON stu.stu_id = sa.stu_id
-        INNER JOIN 
-            class_allocation ca ON ca.cls_allocation_id = sa.cls_allocation_id
-        INNER JOIN 
-            class cls ON cls.cls_id = ca.cls_id
-        INNER JOIN 
-            sections sec ON sec.sec_id = ca.sec_id
-        WHERE 
-            fa.remaining_amount > 0;
+                stu.stu_id,
+                stu.stu_name,
+                stu.pending_fees,
+                cls.cls_name,
+                stu.section AS sec_name
+            FROM 
+                students_master stu
+            INNER JOIN 
+                class cls ON cls.cls_id = stu.cls_id
+            WHERE 
+                stu.pending_fees > 0;
             `;
+            
             const [results] = await db.query(getQuery);
-            const convertData = results.map((data)=>({
-                ...data,
-                stu_img : `http://localhost:3001/uploads/${data.stu_img}`
-            }))
-            res.status(200).json(convertData);
+            
+            res.status(200).json(results);
         } catch (err) {
             console.error("Error fetching Fees Pending students data:", err);
             res.status(500).json({ message: "Internal server error" });
         }
     });
     
+
+
+
+
+
+    router.get('/empAttendChart', async (req, res) => {
+        const { staff_id, year } = req.query;
+      
+        if (!staff_id || !year) {
+          return res.status(400).json({ message: "Missing required query parameters: staff_id and year" });
+        }
+      
+        try {
+          const query = `
+            SELECT 
+              MONTH(created_at) AS month, 
+              COUNT(*) AS count 
+            FROM staffs_attendance 
+            WHERE staff_id = ? AND YEAR(created_at) = ?
+            GROUP BY MONTH(created_at)
+            ORDER BY MONTH(created_at)
+          `;
+          const [rows] = await db.query(query, [staff_id, year]);
+      
+          res.status(200).json(rows);
+        } catch (err) {
+          console.error("Error fetching attendance data:", err);
+          res.status(500).json({ message: "Internal server error" });
+        }
+      });
     return router;
 }
